@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.georgeanderson.verse-of-the-day",
+  "name": "Verse of the Day",
+  "version": "1.0.0",
+  "author": "George Guimaraes",
+  "license": "MIT",
+  "description": "Today's Bible verse reference on the bar. Click for the full verse as a notification, with the translation credit.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Verse of the Day",
+    "description": "Today's Bible verse reference. Click for the full verse.",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "translation": "web",
+      "labelStyle": "short",
+      "showCredit": true,
+      "toastTimeoutSec": 15
+    },
+    "schema": [
+      {
+        "key": "translation",
+        "type": "enum",
+        "label": "Translation",
+        "options": [
+          "web",
+          "kjv",
+          "asv",
+          "bsb",
+          "ylt",
+          "dra",
+          "bbe",
+          "geneva1599",
+          "lsv",
+          "darby",
+          "rv1885"
+        ],
+        "defaultValue": "web",
+        "description": "web World English Bible, kjv King James, asv American Standard 1901, bsb Berean Standard, ylt Young's Literal, dra Douay-Rheims, bbe Basic English, geneva1599 Geneva 1599, lsv Literal Standard (CC BY-SA 4.0), darby Darby, rv1885 Revised Version."
+      },
+      {
+        "key": "labelStyle",
+        "type": "enum",
+        "label": "Bar label",
+        "options": [
+          "short",
+          "full",
+          "glyph"
+        ],
+        "defaultValue": "short",
+        "description": "short: Jas 1:22. full: James 1:22. glyph: book icon only. Vertical bars always use the icon."
+      },
+      {
+        "key": "showCredit",
+        "type": "boolean",
+        "label": "Show translation credit in the toast",
+        "defaultValue": true,
+        "description": "The tooltip always shows it. Translations whose license requires attribution (such as LSV, CC BY-SA) always show it."
+      },
+      {
+        "key": "toastTimeoutSec",
+        "type": "integer",
+        "label": "Toast timeout (seconds)",
+        "min": 3,
+        "max": 120,
+        "step": 1,
+        "defaultValue": 15
+      }
+    ]
+  }
+}
