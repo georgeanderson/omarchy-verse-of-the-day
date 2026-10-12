@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 - 2026-10-11
+
+- Reset the retry backoff when the verse on the bar is already today's, so a
+  failed manual refresh no longer makes the next day's first retry wait 5
+  minutes instead of 1.
+
 ## 1.0.0 - 2026-10-11
 
 First public release.

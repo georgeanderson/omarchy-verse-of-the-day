@@ -96,6 +96,11 @@ BarWidget {
       return
     }
     if (force !== true && isCurrent) {
+      // Today's verse is already shown, so an earlier failure (e.g. a
+      // middle-click while offline) no longer counts toward the backoff.
+      failures = 0
+      lastFetchFailed = false
+      retryTimer.stop()
       scheduleMidnight()
       return
     }
