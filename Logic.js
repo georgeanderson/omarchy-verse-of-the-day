@@ -13,6 +13,11 @@ var BOOK_GLYPH = "\uf02d"
 var MAX_LABEL = 24
 var RETRY_MINUTES = [1, 5, 15, 30, 60]
 var CACHE_SCHEMA = 1
+// Hard cap on what one fetch may hand to the shell: headers plus body. A real
+// response is about 1 KB. Enforced three times: curl --max-filesize, a
+// `head -c` that cuts the stream at the source (chunked or no Content-Length),
+// and a length check here before anything is copied or parsed.
+var MAX_RESPONSE_BYTES = 65536
 
 function trim(value) {
   if (value === undefined || value === null) return ""
@@ -261,8 +266,28 @@ function dayFromEtag(etag) {
   return m ? m[1] : ""
 }
 
+// argv for one fetch. The shell script is a constant; the URL and headers are
+// positional arguments ("$@"), never interpolated. pipefail keeps curl's exit
+// status (63 for --max-filesize, 23/141 when head closes the pipe) meaningful.
+function fetchCommand(endpoint, etag) {
+  var script = "set -o pipefail; curl \"$@\" | head -c " + (MAX_RESPONSE_BYTES + 1)
+  var args = ["bash", "-c", script, "votd-fetch",
+    "-sS", "--max-time", "10", "--max-filesize", String(MAX_RESPONSE_BYTES),
+    "-D", "-", "-H", "Accept: application/json"]
+  var e = sanitizeEtag(etag)
+  if (e !== "") args.push("-H", "If-None-Match: " + e)
+  args.push("--", String(endpoint))
+  return args
+}
+
+function tooLarge(raw) {
+  return raw !== null && raw !== undefined && raw.length !== undefined && raw.length > MAX_RESPONSE_BYTES
+}
+
 // curl -D - writes every header block before the body.
 function parseCurlOutput(raw) {
+  // Size first: nothing oversized is copied, split or parsed.
+  if (tooLarge(raw)) return { status: 0, etag: "", body: "", tooLarge: true }
   var rest = String(raw || "")
   var status = 0
   var etag = ""
@@ -282,6 +307,7 @@ function parseCurlOutput(raw) {
 //   notModified: the cached payload is still today's
 //   error:       keep what we have and retry later
 function decideResponse(parsed, cache, requestedVersion, nowMs) {
+  if (parsed && parsed.tooLarge) return { kind: "error", reason: "response too large" }
   if (!parsed || parsed.status === 0) return { kind: "error", reason: "no HTTP response" }
   if (parsed.status === 304) {
     if (cache && cache.payload && cache.requestedVersion === requestedVersion) {
@@ -291,6 +317,7 @@ function decideResponse(parsed, cache, requestedVersion, nowMs) {
     return { kind: "error", reason: "304 without a cached verse" }
   }
   if (parsed.status !== 200) return { kind: "error", reason: "HTTP " + parsed.status }
+  if (tooLarge(parsed.body)) return { kind: "error", reason: "response too large" }
   var data = null
   try {
     data = JSON.parse(trim(parsed.body))
@@ -314,6 +341,8 @@ function buildCache(payload, etag, day, requestedVersion, fetchedAt) {
 }
 
 function parseCache(text) {
+  // The cache file is only ever written by persist(); refuse anything bigger.
+  if (tooLarge(text)) return null
   var data = null
   try {
     data = JSON.parse(trim(text))

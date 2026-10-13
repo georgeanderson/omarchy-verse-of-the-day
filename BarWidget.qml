@@ -106,9 +106,8 @@ BarWidget {
     }
     retryTimer.stop()
     requestedVersion = translation
-    var args = ["curl", "-sS", "--max-time", "10", "-D", "-", "-H", "Accept: application/json"]
-    if (haveVerse && etag !== "" && cachedVersion === requestedVersion) args.push("-H", "If-None-Match: " + etag)
-    args.push(endpoint)
+    var args = Logic.fetchCommand(endpoint,
+      haveVerse && cachedVersion === requestedVersion ? etag : "")
     streamOutcome = null
     streamDone = false
     processExited = false
@@ -380,8 +379,12 @@ BarWidget {
       waitForEnd: true
       onStreamFinished: {
         if (!root.fetching) return
-        root.streamOutcome = Logic.decideResponse(Logic.parseCurlOutput(String(text || "")),
-          root.currentCache(), root.requestedVersion, Date.now())
+        // head -c already bounds this; never parse more than the cap anyway.
+        var out = text || ""
+        root.streamOutcome = out.length > Logic.MAX_RESPONSE_BYTES
+          ? { kind: "error", reason: "response too large" }
+          : Logic.decideResponse(Logic.parseCurlOutput(String(out)),
+              root.currentCache(), root.requestedVersion, Date.now())
         root.streamDone = true
         if (root.processExited) root.finishFromProcess()
         else exitSettle.restart()

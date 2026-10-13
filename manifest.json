@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.georgeanderson.verse-of-the-day",
   "name": "Verse of the Day",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "George Guimaraes",
   "license": "MIT",
   "description": "Today's Bible verse reference on the bar. Click for the full verse as a notification, with the translation credit.",

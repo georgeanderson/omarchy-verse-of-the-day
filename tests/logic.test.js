@@ -128,3 +128,61 @@ test("elide", () => {
   assert.equal(L.elide("A very long reference name 12:34", 24).length, 24)
   assert.ok(L.elide("A very long reference name 12:34", 24).endsWith("\u2026"))
 })
+
+test("oversized responses are rejected before parsing; cache untouched; retry backoff applies", () => {
+  const now = Date.UTC(2026, 9, 13, 12)
+  const cache = { payload: { reference: "James 1:22", text: "Be doers", version: "web" }, etag: "\"votd-cr-2026-10-13-x\"", requestedVersion: "web" }
+  const before = JSON.stringify(cache)
+  const head = "HTTP/2 200\r\netag: \"votd-cr-2026-10-13-y\"\r\n\r\n"
+  const big = head + JSON.stringify({ reference: "X 1:1", text: "a".repeat(L.MAX_RESPONSE_BYTES), version: "web" })
+  const parsed = L.parseCurlOutput(big)
+  assert.equal(parsed.tooLarge, true)
+  assert.equal(parsed.body, "")
+  const r = L.decideResponse(parsed, cache, "web", now)
+  assert.equal(r.kind, "error")
+  assert.equal(r.reason, "response too large")
+  assert.equal(JSON.stringify(cache), before)
+  assert.equal(L.retryDelayMs(1), 60000)
+  // A non-string with a huge length is rejected without being stringified.
+  let touched = false
+  const fake = { length: 10 * 1024 * 1024, toString() { touched = true; return "" } }
+  assert.equal(L.parseCurlOutput(fake).tooLarge, true)
+  assert.equal(touched, false)
+  // Body-level guard as well (parsed objects built elsewhere).
+  assert.equal(L.decideResponse({ status: 200, etag: "", body: "x".repeat(L.MAX_RESPONSE_BYTES + 1) }, cache, "web", now).reason, "response too large")
+  // Exactly at the cap is still parsed normally (malformed here, not "too large").
+  const atCap = "HTTP/2 200\r\n\r\n" + "x".repeat(L.MAX_RESPONSE_BYTES - 14)
+  assert.equal(atCap.length, L.MAX_RESPONSE_BYTES)
+  assert.equal(L.decideResponse(L.parseCurlOutput(atCap), cache, "web", now).reason, "malformed JSON")
+})
+
+test("a normal response still parses, and 304 still uses the cache", () => {
+  const now = Date.UTC(2026, 9, 13, 12)
+  const body = JSON.stringify({ reference: "James 1:22", text: "Be doers", version: "web", copyright: WEB })
+  const fresh = L.decideResponse(L.parseCurlOutput("HTTP/2 200\r\netag: \"votd-cr-2026-10-13-x\"\r\n\r\n" + body), null, "web", now)
+  assert.equal(fresh.kind, "fresh")
+  assert.equal(fresh.payload.reference, "James 1:22")
+  const cache = { payload: fresh.payload, etag: "\"votd-cr-2026-10-13-x\"", requestedVersion: "web" }
+  const nm = L.decideResponse(L.parseCurlOutput("HTTP/2 304\r\netag: \"votd-cr-2026-10-13-x\"\r\n\r\n"), cache, "web", now)
+  assert.equal(nm.kind, "notModified")
+  assert.equal(nm.day, "2026-10-13")
+})
+
+test("fetchCommand caps size at the source and passes the URL as an argument", () => {
+  const url = "https://api.midvash.com/v1/votd?language=en&version=web;$(touch /tmp/x)"
+  const a = L.fetchCommand(url, "\"votd-cr-2026-10-13-x\"")
+  assert.equal(a[0], "bash")
+  assert.equal(a[1], "-c")
+  assert.equal(a[2], "set -o pipefail; curl \"$@\" | head -c 65537")
+  assert.ok(!a[2].includes(url))
+  assert.equal(a[a.length - 1], url)
+  assert.equal(a[a.length - 2], "--")
+  assert.equal(a[a.indexOf("--max-filesize") + 1], "65536")
+  assert.ok(a.includes("If-None-Match: \"votd-cr-2026-10-13-x\""))
+  assert.ok(!L.fetchCommand(url, "").some(x => /If-None-Match/.test(x)))
+  assert.ok(!L.fetchCommand(url, "bad etag").some(x => /If-None-Match/.test(x)))
+})
+
+test("an oversized cache file is ignored", () => {
+  assert.equal(L.parseCache("x".repeat(L.MAX_RESPONSE_BYTES + 1)), null)
+})

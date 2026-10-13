@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.2 - 2026-10-13
+
+- Cap each fetch at 64 KiB so an oversized or endless response can't use up
+  memory or stall the shell: `curl --max-filesize 65536`, a `head -c` that
+  stops chunked or length-less bodies at the source (with pipefail, so curl's
+  exit status still counts), and a size check in QML and `Logic.js` before
+  anything is copied or parsed. Oversized responses are treated as a failed
+  fetch: the cached verse stays and the normal retry backoff applies.
+- The URL and headers are passed to that pipeline as arguments, never
+  interpolated into the shell script.
+- An oversized cache file is ignored.
+
 ## 1.0.1 - 2026-10-11
 
 - Reset the retry backoff when the verse on the bar is already today's, so a
