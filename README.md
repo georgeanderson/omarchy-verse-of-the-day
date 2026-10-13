@@ -19,7 +19,7 @@ omarchy plugin add https://github.com/georgeanderson/omarchy-verse-of-the-day.gi
 
 `omarchy plugin add` warns that plugins run unsandboxed, clones the repo into
 `~/.config/omarchy/plugins/io.github.georgeanderson.verse-of-the-day/`, and
-validates the manifest. It never runs an install script and never needs sudo.
+validates the manifest. It never runs an install script and doesn't need admin rights.
 
 Without `--enable`, turn it on later (it lands in the right section by default):
 
